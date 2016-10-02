@@ -27,6 +27,22 @@ def remove_udacity_accounts(data):
             non_udacity_data.append(data_point)
     return non_udacity_data
 
+
+def remove_free_trial_cancels(data):
+    """Remove free trial cancels."""
+    new_data = []
+    for data_point in data:
+        if data_point['account_key'] in paid_students:
+            new_data.append(data_point)
+    return new_data
+
+
+def within_one_week(join_date, engagement_date):
+    """Within one week."""
+    time_delta = engagement_date - join_date
+    return time_delta.days < 7
+
+
 enrollments = read_csv('enrollments.csv')
 daily_engagement = read_csv('daily_engagement.csv')
 project_submissions = read_csv('project_submissions.csv')
@@ -37,6 +53,13 @@ for enrollment in enrollments:
     enrollment['days_to_cancel'] = None if enrollment['days_to_cancel'] == '' else int(enrollment['days_to_cancel'])
     enrollment['is_udacity'] = enrollment['is_udacity'] == 'True'
     enrollment['is_canceled'] = enrollment['is_canceled'] == 'True'
+
+for engagement in daily_engagement:
+    engagement['utc_date'] = datetime.strptime(engagement['utc_date'], '%Y-%m-%d')
+    engagement['num_courses_visited'] = float(engagement['num_courses_visited'])
+    engagement['total_minutes_visited'] = float(engagement['total_minutes_visited'])
+    engagement['lessons_completed'] = float(engagement['lessons_completed'])
+    engagement['projects_completed'] = float(engagement['projects_completed'])
 
 print 'length of data enrollments is', len(enrollments)
 print 'length of data daily engagement is', len(daily_engagement)
@@ -76,10 +99,29 @@ print 'total non_udacity_submissions', len(non_udacity_submissions)
 
 paid_students = dict()
 for enrollment in non_udacity_enrollments:
-    if not enrollment['days_to_cancel'] or enrollment['days_to_cancel'] > 7:
+    if not enrollment['is_canceled'] or enrollment['days_to_cancel'] > 7:
         key = enrollment['account_key']
         val = enrollment['join_date']
         if key not in paid_students or paid_students[key] < val:
             paid_students[key] = val
 
 print 'total paid_students', len(paid_students)
+
+paid_enrollments = remove_free_trial_cancels(non_udacity_enrollments)
+paid_engagement = remove_free_trial_cancels(non_udacity_engagement)
+paid_submissions = remove_free_trial_cancels(non_udacity_submissions)
+
+print 'total paid_enrollments', len(paid_enrollments)
+print 'total paid_engagement', len(paid_engagement)
+print 'total paid_submissions', len(paid_submissions)
+
+paid_engagement_in_first_week = []
+for engagement in paid_engagement:
+    account_key = engagement['account_key']
+    join_date = paid_students[account_key]
+    engagement_record_date = engagement['utc_date']
+
+    if within_one_week(join_date, engagement_record_date):
+        paid_engagement_in_first_week.append(engagement)
+
+print 'total paid_engagement_in_first_week', len(paid_engagement_in_first_week)
